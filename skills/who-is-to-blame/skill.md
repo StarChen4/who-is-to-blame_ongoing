@@ -1,3 +1,8 @@
+---
+name: who-is-to-blame
+description: Guide for finding out who is to blame in a DoTA2 game. This skill should be used when users want to find out who is to blame in a Dota2 game giving the game ID.
+---
+
 # who-is-to-blame
 
 DOTA2比赛抓畜分析工具 - 基于科学方法论找出输掉比赛的背锅侠
