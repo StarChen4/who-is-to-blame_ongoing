@@ -6,7 +6,7 @@
 
 **客观性**: 基于数据,而非主观印象
 **公平性**: 考虑位置差异、克制关系、经济背景
-**合理性**: 避免辅助背锅、避免过度惩罚
+**合理性**: 避免过度惩罚
 **可解释性**: 每个罪状都有明确的数据支撑
 
 ## 分析流程
@@ -22,8 +22,8 @@
 1. 中路玩家 → 2号位
 2. 优势路且前10分正补>30 → 1号位
 3. 劣势路且前10分正补>20 → 3号位
-4. 优势路且前10分正补<15 → 4号位
-5. 劣势路且前10分正补<10 → 5号位
+4. 优势路且前10分正补<15 → 5号位
+5. 劣势路且前10分正补<10 → 4号位
 
 特殊情况处理:
 - 如果分路数据不清晰,按GPM降序排列:
@@ -41,8 +41,13 @@
 | 1号位 | 后期输出 | 发育效率、团战输出、推进能力 |
 | 2号位 | 节奏控制 | 对线优势、游走支援、团战贡献 |
 | 3号位 | 前排抗压 | 对线能力、团战承伤、控制输出 |
-| 4号位 | 节奏辅助 | 游走节奏、团战控制、视野布置 |
-| 5号位 | 保障辅助 | 保护核心、视野布置、团队牺牲 |
+| 4号位 | 节奏辅助 | 游走节奏、团战控制、**视野布置** |
+| 5号位 | 保障辅助 | 保护核心、**视野布置(主要责任)**、团队牺牲 |
+
+**视野责任说明**:
+- 视野责任仅由4/5号位承担,1/2/3号位不评估视野相关失误
+- 5号位承担主要视野责任(系数1.0)
+- 4号位承担次要视野责任(系数0.8)
 
 ### 第二步: 失误识别
 
@@ -56,6 +61,7 @@
 - 位置为1/2/3号位
 - 前10分钟正补 < 对手同路玩家的50%
 - 对线胜率 < 30%
+- 对线未被克制的英雄
 
 示例:
 ```
@@ -94,6 +100,20 @@
 - 参团率 < 20%
 - 视野得分(如果有) = 0
 
+**4. 辅助视野完全缺失**
+
+条件:
+- 位置为4/5号位
+- 侦查守卫购买 = 0 且 岗哨守卫购买 = 0
+- 比赛时长 > 15分钟
+
+示例:
+```
+5号位巫医全场0个守卫购买
+比赛时长32分钟
+→ 触发SSS级失误: 辅助视野完全缺失
+```
+
 #### SS级失误 (基础畜度+80)
 
 **1. 对线严重劣势**
@@ -121,6 +141,25 @@
 - 1/2号位
 - 防御塔伤害 < 1000
 - 比赛时长 > 30分钟
+
+**4. 辅助视野严重不足**
+
+条件:
+- 位置为5号位
+- 侦查守卫使用 < 3 且 比赛时长 > 25分钟
+- 或: 购买了守卫但使用率 < 30% (即: 使用数/购买数 < 0.3)
+
+示例:
+```
+5号位全场只插了2个侦查守卫
+比赛时长35分钟
+→ 触发SS级失误: 辅助视野严重不足
+
+或者:
+5号位购买了10个守卫但只插了2个
+使用率 = 2/10 = 20% < 30%
+→ 触发SS级失误: 买眼不插
+```
 
 #### S级失误 (基础畜度+60)
 
@@ -159,6 +198,22 @@
 - 或多次团战(>3次)未参与
 - 核心位在关键团战中0输出
 
+**4. 视野质量极差**
+
+条件:
+- 位置为4/5号位
+- 守卫平均存活时长 < 30秒 (正常应>60秒)
+- 且使用守卫数量 >= 3 (有一定样本量)
+
+示例:
+```
+4号位插了5个侦查守卫
+平均存活时长只有25秒
+→ 触发S级失误: 视野质量极差(眼位选择有严重问题)
+```
+
+**注意**: 如果守卫数量<3个,样本量过小,不评估质量
+
 #### A级失误 (基础畜度+40)
 
 **1. 发育效率低**
@@ -178,6 +233,25 @@
 条件:
 - 买活但未贡献(买活后立即死亡)
 - 或关键时刻不买活
+
+**4. 视野物品使用不积极**
+
+条件:
+- 位置为4/5号位
+- 诡计之雾购买 = 0 且 比赛时长 > 30分钟
+- 或: 对方有隐身英雄但显影之尘购买 = 0
+
+示例:
+```
+对面有赏金猎人(隐身英雄)
+4号位和5号位都没买过显影之尘
+→ 两个辅助都触发A级失误: 缺乏反隐意识
+
+或者:
+比赛打了40分钟
+4号位和5号位都没买过诡计之雾
+→ 触发A级失误: 缺乏进攻性视野物品
+```
 
 #### B-F级失误 (基础畜度+10-30)
 
@@ -292,9 +366,167 @@ def get_economic_context_factor(time, team_gold_diff):
 → 经济背景系数 = 1.2 (更不应该)
 ```
 
+#### 视野责任系数(仅4/5号位)
+
+```python
+视野责任系数 = {
+    5: 1.0,   # 5号位视野责任最重
+    4: 0.8,   # 4号位视野责任次之
+    # 1/2/3号位不评估视野责任
+}
+```
+
+**视野畜度计算**:
+
+```python
+def calculate_vision_score(player, match_duration_min, enemy_supports, is_disadvantaged):
+    """
+    仅计算4/5号位的视野畜度
+    1/2/3号位返回0
+
+    参数:
+    - enemy_supports: 对方4/5号位列表,用于态度对比
+    - is_disadvantaged: 是否处于劣势(输方通常为True)
+    """
+    if player.position not in [4, 5]:
+        return 0  # 核心位不评估视野责任
+
+    vision_base_score = 0
+
+    # 维度1: 积极性评估(购买和使用) - 权重1.0
+    # 重点: 与对方辅助对比态度
+    积极性得分 = evaluate_ward_activity_with_comparison(player, match_duration_min, enemy_supports)
+
+    # 维度2: 能力评估(守卫存活时长) - 权重0.4(降低权重,因为劣势方被压制是正常的)
+    能力得分 = evaluate_ward_quality(player.avg_ward_lifetime, player.ward_count, is_disadvantaged)
+
+    vision_base_score = 积极性得分 + 能力得分 * 0.4
+
+    # 应用视野责任系数
+    视野畜度 = vision_base_score * 视野责任系数[player.position]
+
+    return 视野畜度
+```
+
+**维度1: 积极性评估(与对方辅助对比)**
+
+```python
+def evaluate_ward_activity_with_comparison(player, match_duration_min, enemy_supports):
+    """
+    积极性评估 - 重点对比双方辅助的态度
+    态度比能力更重要,因为态度是可控的
+    """
+    score = 0
+
+    # 获取对方辅助的视野数据用于对比
+    enemy_obs_total = sum(s.obs_used for s in enemy_supports)
+    enemy_sentry_total = sum(s.sentry_used for s in enemy_supports)
+
+    # === 绝对失误(不需要对比) ===
+
+    # SSS级: 买了眼但一个不用(态度极差)
+    if player.obs_purchased > 0 and player.obs_used == 0:
+        score += 100
+
+    # SSS级: 完全不买眼(15分钟以上)
+    elif player.obs_purchased == 0 and player.sentry_purchased == 0 and match_duration_min > 15:
+        score += 100
+
+    # SS级: 使用率<30%(买了不插)
+    elif player.obs_purchased > 0:
+        usage_rate = player.obs_used / player.obs_purchased
+        if usage_rate < 0.3:
+            score += 80
+
+    # === 相对失误(与对方辅助对比) ===
+
+    # SS级: 对方辅助积极插眼,我方辅助摆烂
+    # 条件: 对方辅助插眼数 >= 我方辅助的3倍
+    if enemy_obs_total >= player.obs_used * 3 and enemy_obs_total >= 6:
+        score += 80
+        # 记录罪状: "对方辅助插了{X}个眼,你只插了{Y}个"
+
+    # S级: 对方辅助积极插眼,我方辅助明显落后
+    # 条件: 对方辅助插眼数 >= 我方辅助的2倍
+    elif enemy_obs_total >= player.obs_used * 2 and enemy_obs_total >= 4:
+        score += 60
+
+    # A级: 对方辅助插眼数明显多于我方
+    # 条件: 对方辅助插眼数 >= 我方辅助的1.5倍
+    elif enemy_obs_total >= player.obs_used * 1.5 and enemy_obs_total >= 3:
+        score += 40
+
+    # === 视野物品使用 ===
+
+    # A级: 30分钟以上0诡计之雾
+    if player.smoke_purchased == 0 and match_duration_min > 30:
+        score += 40
+
+    # A级: 对方有隐身但0显影之尘
+    if has_invisible_enemy() and player.dust_purchased == 0:
+        score += 40
+
+    return score
+```
+
+**维度2: 能力评估(考虑劣势减免)**
+
+```python
+def evaluate_ward_quality(avg_lifetime_sec, ward_count, is_disadvantaged):
+    """
+    能力评估 - 守卫存活时长
+
+    重要: 劣势方被视野压制是正常的,存活时长较低不应过度惩罚
+    """
+    if ward_count < 3:
+        return 0  # 样本量过小,不评估
+
+    # 劣势方的存活时长阈值降低(被压制正常)
+    if is_disadvantaged:
+        # 劣势方阈值放宽
+        if avg_lifetime_sec < 15:
+            return 40  # 眼位极差(即使劣势也不该这么低)
+        elif avg_lifetime_sec < 30:
+            return 20  # 眼位较差但可理解
+        elif avg_lifetime_sec < 45:
+            return 10  # 轻微问题
+        else:
+            return 0   # 合格
+    else:
+        # 优势方/均势方正常阈值
+        if avg_lifetime_sec < 20:
+            return 60  # 眼位极差
+        elif avg_lifetime_sec < 40:
+            return 40  # 眼位较差
+        elif avg_lifetime_sec < 60:
+            return 20  # 眼位一般
+        else:
+            return 0   # 眼位合格
+```
+
+**特殊情况处理**:
+
+```python
+# 如果全队都不买眼,说明是团队问题,不单独惩罚某人
+if team_total_obs_purchased == 0:
+    # 降低个人视野失误的权重
+    for player in supports:
+        player.vision_score *= 0.5
+    add_note("全队无人购买守卫,视野缺失是团队问题")
+
+# 如果双方辅助插眼数量都很少,说明是比赛风格问题
+if our_supports_obs_total < 5 and enemy_supports_obs_total < 5:
+    # 不进行对比惩罚
+    skip_comparison_penalty = True
+    add_note("双方辅助插眼都少,可能是快节奏比赛")
+```
+
 #### 最终畜度计算
 
 ```python
+# 视野畜度作为基础畜度的一部分
+基础畜度 = 常规失误畜度 + 视野畜度
+
 最终畜度 = 基础畜度 × 克制系数 × 位置系数 × 经济背景系数
 
 # 确保畜度在合理范围
