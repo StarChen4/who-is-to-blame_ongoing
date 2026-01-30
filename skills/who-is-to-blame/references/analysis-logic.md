@@ -38,18 +38,213 @@
 
 | 位置 | 主要责任 | 评判重点 |
 |-----|---------|---------|
-| 1号位 | 后期输出 | 发育效率、团战输出、推进能力 |
-| 2号位 | 节奏控制 | 对线优势、游走支援、团战贡献 |
-| 3号位 | 前排抗压 | 对线能力、团战承伤、控制输出 |
+| 1号位 | 后期输出 | 发育效率、团战输出、推进能力、**选人责任** |
+| 2号位 | 节奏控制 | 对线优势、游走支援、团战贡献、**选人责任** |
+| 3号位 | 前排抗压 | 对线能力、团战承伤、控制输出、**选人责任** |
 | 4号位 | 节奏辅助 | 游走节奏、团战控制、**视野布置** |
 | 5号位 | 保障辅助 | 保护核心、**视野布置(主要责任)**、团队牺牲 |
+
+**选人责任说明**:
+- 选人责任仅由1/2/3号位核心承担，4/5号位不评估选人责任
+- 辅助先拿是正常操作，被克制不算失误
 
 **视野责任说明**:
 - 视野责任仅由4/5号位承担,1/2/3号位不评估视野相关失误
 - 5号位承担主要视野责任(系数1.0)
 - 4号位承担次要视野责任(系数0.8)
 
-### 第二步: 失误识别
+### 第二步: 选人责任评估（仅核心位）
+
+选人责任评估是针对1/2/3号位核心的额外判定维度。
+
+#### 核心位选人责任权重
+
+```python
+核心位选人责任权重 = {
+    1: 1.0,   # 1号位责任最大（大哥）
+    2: 0.9,   # 2号位责任次之（中单）
+    3: 0.7,   # 3号位责任较轻
+    # 4/5号位不评估选人责任（辅助先拿是正常的）
+}
+```
+
+#### 选人犯畜行为
+
+**1. 活该（SS级，基础畜度+80）**
+
+条件:
+- 我方核心在阶段1（1-4手）选出
+- 被对方阶段2或阶段3（5-10手）的英雄严重克制（克制指数<-4%）
+- 且在比赛中被克制关系明显影响（对线/团战数据差）
+
+```python
+if 我方核心.选人阶段 == 1:  # 早期盲选
+    for 敌方英雄 in 敌方队伍:
+        if 敌方英雄.选人阶段 in [2, 3]:  # 后手
+            if 敌方英雄.克制(我方核心) and 克制指数 < -4%:
+                if 我方核心.表现差:  # 对线劣势/经济转化差
+                    return "活该", 权重=1.0
+```
+
+**2. 有点难受（S级，基础畜度+48，即80×0.6）**
+
+条件:
+- 我方核心在阶段2（5-8手）选出
+- 被对方阶段3（9-10手）的英雄严重克制
+- 且在比赛中被克制关系明显影响
+
+```python
+if 我方核心.选人阶段 == 2:  # 中期选人
+    for 敌方英雄 in 敌方队伍:
+        if 敌方英雄.选人阶段 == 3:  # 最后手
+            if 敌方英雄.克制(我方核心) and 克制指数 < -4%:
+                if 我方核心.表现差:
+                    return "有点难受", 权重=0.6
+```
+
+**3. 头铁（SS级，基础畜度+80）**
+
+条件:
+- 对方核心在早期（阶段1或阶段2）先选出
+- 我方核心在后手选出被对方克制的英雄
+- 明知被克还选
+
+```python
+if 我方核心.选人阶段 > 敌方核心.选人阶段:  # 我方后选
+    if 敌方核心.克制(我方核心) and 克制指数 < -4%:
+        if 我方核心.表现差:
+            return "头铁", 权重=1.0
+```
+
+**4. 给你机会不中用啊（SS级，基础畜度+64，即80×0.8）**
+
+条件:
+- 对方核心在早期（阶段1或阶段2）先选出
+- 我方核心在后手选出克制对方的英雄（克制指数>+4%）
+- 但没有打出克制效果（对线/团战没优势）
+
+```python
+if 我方核心.选人阶段 > 敌方核心.选人阶段:  # 我方后选
+    if 我方核心.克制(敌方核心) and 克制指数 > +4%:
+        if 我方核心.表现不佳:  # 没有打出应有的优势
+            return "给你机会不中用啊", 权重=0.8
+```
+
+**5. 你懂DOTA吗?（A级，基础畜度+24，即80×0.3）**
+
+条件:
+- 对方核心在早期（阶段1或阶段2）先选出
+- 我方核心在后手没有选出针对英雄
+- 且比赛表现差
+
+```python
+if 我方核心.选人阶段 > 敌方核心.选人阶段:  # 我方后选
+    if not 我方核心.克制(敌方核心):  # 没有针对
+        if 我方核心.表现差:
+            return "你懂DOTA吗?", 权重=0.3
+```
+
+#### 选人免责行为
+
+**1. 运气不好（免责，权重×0.1）**
+
+条件:
+- 我方核心在阶段3（9-10手）选出
+- 被对方阶段3（9-10手）正好克制（双方同时盲选）
+
+```python
+if 我方核心.选人阶段 == 3 and 敌方英雄.选人阶段 == 3:
+    if 敌方英雄.克制(我方核心):
+        return "运气不好", 权重=0.1  # 几乎免责
+```
+
+**2. 辅助先拿（不评估）**
+
+条件:
+- 4/5号位被克制
+
+```python
+if 玩家.位置 in [4, 5]:
+    return None  # 不评估选人责任
+```
+
+#### 选人责任畜度计算
+
+```python
+def calculate_draft_responsibility_score(player, enemy_team, match_data):
+    """
+    计算选人责任畜度
+    仅针对1/2/3号位核心
+    """
+    if player.position not in [1, 2, 3]:
+        return 0, None  # 辅助不评估
+
+    score = 0
+    draft_verdict = None
+
+    # 检查各种犯畜情况
+    for enemy in enemy_team:
+        counter_index = get_counter_index(enemy.hero, player.hero)
+
+        # 活该: 阶段1选被阶段2/3克制
+        if player.pick_phase == 1 and enemy.pick_phase in [2, 3]:
+            if counter_index < -4 and player.performance_poor:
+                score = 80  # SS级
+                draft_verdict = "活该"
+                break
+
+        # 有点难受: 阶段2选被阶段3克制
+        elif player.pick_phase == 2 and enemy.pick_phase == 3:
+            if counter_index < -4 and player.performance_poor:
+                score = 48  # 80 * 0.6
+                draft_verdict = "有点难受"
+                break
+
+        # 头铁: 后选还被克
+        elif player.pick_phase > enemy.pick_phase:
+            if counter_index < -4 and player.performance_poor:
+                score = 80  # SS级
+                draft_verdict = "头铁"
+                break
+
+    # 检查浪费克制优势
+    for enemy in enemy_team:
+        counter_index = get_counter_index(player.hero, enemy.hero)
+        if player.pick_phase > enemy.pick_phase:  # 我方后选
+            if counter_index > +4:  # 我克制敌方
+                if player.performance_poor:  # 但没打出效果
+                    if score < 64:  # 不覆盖更严重的判定
+                        score = 64  # 80 * 0.8
+                        draft_verdict = "给你机会不中用啊"
+
+    # 检查"你懂DOTA吗?"情况
+    if draft_verdict is None:
+        for enemy in enemy_team:
+            if enemy.position in [1, 2, 3]:  # 对方核心
+                if player.pick_phase > enemy.pick_phase:  # 我方后选
+                    counter_index = get_counter_index(player.hero, enemy.hero)
+                    if counter_index >= -2 and counter_index <= 2:  # 没有针对
+                        if player.performance_poor:
+                            score = 24  # 80 * 0.3
+                            draft_verdict = "你懂DOTA吗?"
+
+    # 运气不好免责
+    if player.pick_phase == 3:
+        for enemy in enemy_team:
+            if enemy.pick_phase == 3:
+                counter_index = get_counter_index(enemy.hero, player.hero)
+                if counter_index < -4:
+                    score *= 0.1  # 几乎免责
+                    draft_verdict = "运气不好"
+
+    # 应用位置权重
+    position_weight = {1: 1.0, 2: 0.9, 3: 0.7}
+    score *= position_weight.get(player.position, 1.0)
+
+    return score, draft_verdict
+```
+
+### 第三步: 常规失误识别
 
 按照SSS到F级分类识别失误,每个失误贡献基础畜度。
 
@@ -260,7 +455,7 @@
 - 拉野次数低(辅助0次)
 - 其他小失误
 
-### 第三步: 系数调整
+### 第四步: 系数调整
 
 基础畜度需要根据实际情况调整。
 
@@ -524,8 +719,11 @@ if our_supports_obs_total < 5 and enemy_supports_obs_total < 5:
 #### 最终畜度计算
 
 ```python
-# 视野畜度作为基础畜度的一部分
-基础畜度 = 常规失误畜度 + 视野畜度
+# 选人责任畜度（仅核心位）
+选人责任畜度, 选人判定 = calculate_draft_responsibility_score(player, enemy_team, match_data)
+
+# 视野畜度作为基础畜度的一部分（仅辅助位）
+基础畜度 = 常规失误畜度 + 视野畜度 + 选人责任畜度
 
 最终畜度 = 基础畜度 × 克制系数 × 位置系数 × 经济背景系数
 
@@ -533,7 +731,7 @@ if our_supports_obs_total < 5 and enemy_supports_obs_total < 5:
 最终畜度 = max(0, min(200, 最终畜度))
 ```
 
-### 第四步: 排名与判定
+### 第五步: 排名与判定
 
 #### 排名规则
 
@@ -596,7 +794,60 @@ if max(player.final_score for player in players) < 30:
 
 为每个畜生生成详细的罪状列表。
 
-### 罪状模板
+### 选人责任罪状模板
+
+```python
+def generate_draft_charge(player, draft_verdict, draft_score):
+    """为选人责任生成罪状"""
+    if draft_verdict is None:
+        return None
+
+    charge_templates = {
+        "活该": {
+            "level": "SS",
+            "description": "【选人责任】早选被针对，活该被克制",
+            "detail": "你在阶段1早早选出{hero}，被对方后手的{enemy_hero}严重克制（克制指数{counter_index}%），且表现糟糕"
+        },
+        "有点难受": {
+            "level": "S",
+            "description": "【选人责任】中期选人被最后手克制",
+            "detail": "你在阶段2选出{hero}，被对方最后手的{enemy_hero}克制（克制指数{counter_index}%）"
+        },
+        "头铁": {
+            "level": "SS",
+            "description": "【选人责任】明知被克还选，头铁行为",
+            "detail": "对方已经选出{enemy_hero}，你还选{hero}送过去（克制指数{counter_index}%），这不是头铁是什么？"
+        },
+        "给你机会不中用啊": {
+            "level": "SS",
+            "description": "【选人责任】拿到克制英雄却没打出优势",
+            "detail": "你后选{hero}本应克制对方的{enemy_hero}（克制指数+{counter_index}%），结果打成这样？"
+        },
+        "你懂DOTA吗?": {
+            "level": "A",
+            "description": "【选人责任】后选却没有针对对方核心",
+            "detail": "对方核心{enemy_hero}已经选出，你有后选优势却选了个不针对的{hero}，选人有问题"
+        },
+        "运气不好": {
+            "level": "F",
+            "description": "【选人免责】最后阶段双方同时盲选",
+            "detail": "你和{enemy_hero}都是最后阶段选的，被克制只能说运气不好"
+        }
+    }
+
+    template = charge_templates.get(draft_verdict)
+    if template:
+        return {
+            "level": template["level"],
+            "description": template["description"],
+            "data": template["detail"],
+            "draft_verdict": draft_verdict,
+            "draft_score": draft_score
+        }
+    return None
+```
+
+### 常规罪状模板
 
 ```python
 def generate_charges(player, failures):
@@ -778,11 +1029,27 @@ if avg_score > 60:
 完整的分析流程:
 
 1. ✅ 识别位置
-2. ✅ 识别所有失误(SSS-F级)
-3. ✅ 计算基础畜度
-4. ✅ 应用系数调整(克制、位置、经济背景)
-5. ✅ 排名并判定畜生(最多2个)
-6. ✅ 生成详细罪状和数据对比
-7. ✅ 输出幽默的惩罚建议
+2. ✅ 评估选人责任（仅1/2/3号位核心）
+3. ✅ 识别所有常规失误(SSS-F级)
+4. ✅ 计算基础畜度（常规失误 + 视野畜度 + 选人责任畜度）
+5. ✅ 应用系数调整(克制、位置、经济背景)
+6. ✅ 排名并判定畜生(最多2个)
+7. ✅ 生成详细罪状和数据对比
+8. ✅ 输出幽默的惩罚建议
 
 **核心原则**: 数据驱动、公平客观、可解释性强
+
+## 选人责任判定速查表
+
+| 判定类型 | 我方选人阶段 | 敌方选人阶段 | 克制关系 | 表现要求 | 畜度等级 | 权重 |
+|---------|------------|------------|---------|---------|---------|-----|
+| 活该 | 阶段1 | 阶段2/3 | 被克制(<-4%) | 表现差 | SS | 1.0 |
+| 有点难受 | 阶段2 | 阶段3 | 被克制(<-4%) | 表现差 | S | 0.6 |
+| 头铁 | 后于敌方 | 先于我方 | 被克制(<-4%) | 表现差 | SS | 1.0 |
+| 给你机会不中用啊 | 后于敌方 | 先于我方 | 克制对方(>+4%) | 没打出优势 | SS | 0.8 |
+| 你懂DOTA吗? | 后于敌方 | 先于我方 | 没针对(-2%~+2%) | 表现差 | A | 0.3 |
+| 运气不好 | 阶段3 | 阶段3 | 被克制 | - | 免责 | 0.1 |
+
+**注意**:
+- 仅评估1/2/3号位核心，4/5号位辅助不评估选人责任
+- 位置权重: 1号位×1.0, 2号位×0.9, 3号位×0.7
